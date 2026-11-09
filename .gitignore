@@ -1,0 +1,12 @@
+**/node_modules/
+**/dist/
+**/target/
+.cache/
+.mvn/apache-maven-*/
+data/
+*.db
+*.db-shm
+*.db-wal
+.env
+.DS_Store
+*.tsbuildinfo
