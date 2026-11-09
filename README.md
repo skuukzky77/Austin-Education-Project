@@ -117,3 +117,35 @@ npm run build
 ## AI 编程工具使用说明
 
 使用 Codex 协助梳理需求、讨论并编写设计文档、实现代码和测试，以及进行浏览器验证。设计中选择把垂直切片集中在咨询、试听和跟进；没有采用把试听、正式班级、课时和续费都做成完整页面的扩展方案，因为固定时间内应优先保证一条流程可运行、规则可验证。仓库保留完整提交历史；使用者应通读并理解设计判断、实现和测试，再进行展示。
+
+
+## Render 在线演示部署（AI 暂时关闭）
+
+仓库根目录提供 `Dockerfile` 和 `render.yaml`，用于把前端静态资源打包进 Spring Boot，由同一个 Web 服务提供页面和 `/api` 接口。部署使用 SQLite，不需要配置 OpenAI API Key。
+
+### 创建服务
+
+1. 登录 [Render](https://render.com/)，选择 **New → Blueprint**。
+2. 连接 GitHub 仓库 `skuukzky77/Austin-Education-Project`，选择 `main` 分支。
+3. Render 读取仓库根目录的 `render.yaml`，确认创建 `austin-student-management-demo` 服务。
+4. 等待 Docker 构建和部署完成。Render 分配的 `onrender.com` 地址就是演示地址；打开根路径应显示学生管理系统登录页。
+5. 使用下方演示账号登录，检查学生列表、学生详情、试听和跟进。AI 辅助整理入口在未配置模型密钥时会提示手动填写，不会请求远程模型。
+
+### 演示环境的重要限制
+
+- 当前 Blueprint 使用 Render Free Web Service 和 `/tmp/student-management.db`。**免费实例没有持久化磁盘**：服务休眠、重启、重新部署或实例替换后，数据库可能被清空并重新生成演示数据。请只使用虚构演示信息，不要录入真实学生或家长资料。
+- 演示账号和密码是仓库公开可见的固定凭据。任何访问者都可以尝试登录；该服务只用于公开作品演示，不是生产系统。
+- 不要在 Render 环境变量中添加 `OPENAI_API_KEY`。当前 AI 服务在未配置密钥且目标不是本机模型时会直接返回“未配置 AI 服务”，业务表单仍可手动填写。
+- SQLite 单连接适用于当前单实例演示，不适合横向扩容或多实例并发。正式使用前需迁移到受管理的数据库，并完善持久化、HTTPS Cookie、安全审查、登录限流、账号管理和隐私保护。
+- 当前部署配置仅用于第一阶段在线演示；课时、报名、出勤等尚未实现的模块不会因为部署而自动具备。
+
+### 本地构建验证
+
+在仓库根目录执行：
+
+```bash
+docker build -t student-management-demo .
+docker run --rm -p 8080:8080 -e DATABASE_URL=jdbc:sqlite:/tmp/student-management.db student-management-demo
+```
+
+浏览器打开 `http://localhost:8080`。此 Docker 构建配置尚未在本次环境中实际运行验证；首次部署后请查看 Render 的 Build Logs 和 Runtime Logs，如构建失败请先不要分享在线地址。
