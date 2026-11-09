@@ -26,6 +26,7 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
+import { formatTimeRange } from "./formatTimeRange";
 
 type User = {
   id: number;
@@ -67,6 +68,7 @@ type FollowUp = {
 type Dashboard = {
   studentCount: number;
   trials: Trial[];
+  pendingResults: Trial[];
   followups: FollowUp[];
 };
 type Detail = {
@@ -211,6 +213,20 @@ export default function App() {
       active = false;
     };
   }, [user, refreshCount, query]);
+  useEffect(() => {
+    if (!user || user.role !== "COUNSELOR") return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") setRefreshCount((n) => n + 1);
+    }, 60_000);
+    const refreshOnReturn = () => {
+      if (document.visibilityState === "visible") setRefreshCount((n) => n + 1);
+    };
+    document.addEventListener("visibilitychange", refreshOnReturn);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshOnReturn);
+    };
+  }, [user]);
   const openDetail = useCallback(async (id: number) => {
     setError("");
     setLoading(true);
@@ -228,6 +244,23 @@ export default function App() {
   }, []);
   const open = (id: number) => {
     void openDetail(id);
+  };
+  const openTrialResult = async (trial: Trial) => {
+    setError("");
+    setLoading(true);
+    try {
+      const student = await api<Detail>(`/students/${trial.studentId}`);
+      const latestTrial = student.trials.find((item) => item.id === trial.id);
+      if (!latestTrial || latestTrial.status !== "SCHEDULED") {
+        reload();
+        throw new Error("试听状态已更新，请刷新后查看。");
+      }
+      setDialog({ type: "result", student, trial: latestTrial });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   };
   const logout = async () => {
     await api("/logout", "POST").catch(() => {});
@@ -417,11 +450,59 @@ export default function App() {
                 <Metric
                   icon={<CalendarDays size={19} />}
                   label="已安排试听"
-                  value={dashboard?.trials.length ?? 0}
-                  sub="按时间顺序查看排期"
+                  value={
+                    (dashboard?.trials.length ?? 0) +
+                    (dashboard?.pendingResults.length ?? 0)
+                  }
+                  sub={
+                    dashboard?.pendingResults.length
+                      ? `${dashboard.pendingResults.length} 项已结束，待录入结果`
+                      : "按时间顺序查看排期"
+                  }
                   tone="blue"
                 />
               </div>
+              {!!dashboard?.pendingResults.length && (
+                <>
+                  <div className="section-head">
+                    <div>
+                      <div className="overline">RESULTS NEEDED</div>
+                      <h2>
+                        试听结果待录入{" "}
+                        <span className="count">
+                          {dashboard.pendingResults.length}
+                        </span>
+                      </h2>
+                      <p>这些试听已结束，请及时记录结果和下一步。</p>
+                    </div>
+                  </div>
+                  <div className="card">
+                    {dashboard.pendingResults.map((trial) => (
+                      <div className="trial-row" key={trial.id}>
+                        <span className="avatar pale">
+                          {trial.studentName.slice(0, 1)}
+                        </span>
+                        <div className="trial-info">
+                          <strong>
+                            {trial.studentName} · {trial.teacherName}
+                          </strong>
+                          <span>
+                            {formatTimeRange(trial.startsAt, trial.endsAt)}
+                          </span>
+                        </div>
+                        <Badge tone="orange">待录入结果</Badge>
+                        <button
+                          className="row-action"
+                          disabled={loading}
+                          onClick={() => void openTrialResult(trial)}
+                        >
+                          记录结果 <ArrowRight size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
               <div className="section-head">
                 <div>
                   <div className="overline">YOUR PRIORITIES</div>
@@ -498,7 +579,7 @@ export default function App() {
               <div className="section-head bottom-head">
                 <div>
                   <div className="overline">COMING UP</div>
-                  <h2>即将试听</h2>
+                  <h2>即将及进行中的试听</h2>
                   <p>提前了解安排，让每一次初见都从容。</p>
                 </div>
                 <button
@@ -589,7 +670,18 @@ export default function App() {
                 </div>
               </div>
               <TrialList
-                trials={dashboard?.trials ?? []}
+                trials={
+                  dashboard
+                    ? [...dashboard.pendingResults, ...dashboard.trials].sort(
+                        (a, b) => a.startsAt.localeCompare(b.startsAt),
+                      )
+                    : []
+                }
+                pendingTrialIds={
+                  new Set(
+                    dashboard?.pendingResults.map((trial) => trial.id) ?? [],
+                  )
+                }
                 onOpen={open}
                 empty="暂时没有试听安排"
               />
@@ -662,10 +754,12 @@ function TrialList({
   trials,
   onOpen,
   empty,
+  pendingTrialIds,
 }: {
   trials: Trial[];
   onOpen: (id: number) => void;
   empty: string;
+  pendingTrialIds?: ReadonlySet<number>;
 }) {
   return (
     <div className="card">
@@ -681,11 +775,12 @@ function TrialList({
             <div className="trial-info">
               <strong>{t.studentName} · 试听课</strong>
               <span>
-                {t.teacherName} <i /> {display(t.startsAt)} –{" "}
-                {t.endsAt.slice(11, 16)}
+                {t.teacherName} <i /> {formatTimeRange(t.startsAt, t.endsAt)}
               </span>
             </div>
-            <Badge tone="blue">已安排</Badge>
+            <Badge tone={pendingTrialIds?.has(t.id) ? "orange" : "blue"}>
+              {pendingTrialIds?.has(t.id) ? "待录入结果" : "已安排"}
+            </Badge>
             <button
               className="icon-button"
               onClick={() => onOpen(t.studentId)}
@@ -742,7 +837,7 @@ function TeacherHome({
               <div className="trial-info">
                 <strong>{l.title}</strong>
                 <span>
-                  {l.type} · {l.startsAt.slice(11, 16)}–{l.endsAt.slice(11, 16)}
+                  {l.type} · {formatTimeRange(l.startsAt, l.endsAt)}
                   {l.students?.length
                     ? ` · 学生：${l.students.join("、")}`
                     : ""}
@@ -821,8 +916,7 @@ function StudentDetail({
                     </Badge>
                   </div>
                   <p>
-                    <Clock3 size={14} /> {display(t.startsAt)} –{" "}
-                    {t.endsAt.slice(11, 16)}
+                    <Clock3 size={14} /> {formatTimeRange(t.startsAt, t.endsAt)}
                   </p>
                   {t.result && (
                     <p>

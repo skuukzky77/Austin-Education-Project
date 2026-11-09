@@ -100,6 +100,12 @@ public class Seed implements CommandLineRunner {
         time(0, 21, 0),
         now);
     db.update(
+        "INSERT INTO trials(student_id,teacher_id,starts_at,ends_at,status,created_at)"
+            + " VALUES(14,4,?,?,'SCHEDULED',?)",
+        time(-1, 14, 0),
+        time(-1, 15, 0),
+        now);
+    db.update(
         "INSERT INTO lessons(id,title,teacher_id,starts_at,ends_at,status)"
             + " VALUES(1,'数学固定班',3,?,?,'SCHEDULED')",
         time(1, 9, 0),

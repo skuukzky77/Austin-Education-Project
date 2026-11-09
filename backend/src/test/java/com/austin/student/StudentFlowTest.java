@@ -229,6 +229,120 @@ class StudentFlowTest {
   }
 
   @Test
+  void dashboardSeparatesEndedTrialsUntilTheirResultsAreRecorded() throws Exception {
+    var counselor = login("counselor");
+    var otherCounselor = login("counselor2");
+    long endedStudent = student(counselor, "待录入试听");
+    long upcomingStudent = student(counselor, "未来试听");
+    long otherStudent = student(otherCounselor, "其他顾问的试听");
+    long cancelledStudent = student(counselor, "已取消试听");
+
+    var ended =
+        postJson(
+            counselor,
+            "/api/trials",
+            Map.of(
+                "studentId",
+                endedStudent,
+                "teacherId",
+                4,
+                "startsAt",
+                date(-20, "12:00"),
+                "endsAt",
+                date(-20, "13:00")));
+    var upcoming =
+        postJson(
+            counselor,
+            "/api/trials",
+            Map.of(
+                "studentId",
+                upcomingStudent,
+                "teacherId",
+                4,
+                "startsAt",
+                date(20, "12:00"),
+                "endsAt",
+                date(20, "13:00")));
+    var other =
+        postJson(
+            otherCounselor,
+            "/api/trials",
+            Map.of(
+                "studentId",
+                otherStudent,
+                "teacherId",
+                4,
+                "startsAt",
+                date(-21, "12:00"),
+                "endsAt",
+                date(-21, "13:00")));
+    var cancelled =
+        postJson(
+            counselor,
+            "/api/trials",
+            Map.of(
+                "studentId",
+                cancelledStudent,
+                "teacherId",
+                4,
+                "startsAt",
+                date(-22, "12:00"),
+                "endsAt",
+                date(-22, "13:00")));
+    assertThat(ended.getResponse().getStatus()).isEqualTo(200);
+    assertThat(upcoming.getResponse().getStatus()).isEqualTo(200);
+    assertThat(other.getResponse().getStatus()).isEqualTo(200);
+    assertThat(cancelled.getResponse().getStatus()).isEqualTo(200);
+
+    long endedId = json.readTree(ended.getResponse().getContentAsString()).path("id").asLong();
+    long upcomingId =
+        json.readTree(upcoming.getResponse().getContentAsString()).path("id").asLong();
+    long cancelledId =
+        json.readTree(cancelled.getResponse().getContentAsString()).path("id").asLong();
+    mvc.perform(
+            post("/api/trials/" + cancelledId + "/cancel")
+                .session(counselor)
+                .header("X-Requested-With", "XMLHttpRequest"))
+        .andExpect(status().isOk());
+    JsonNode dashboard =
+        json.readTree(
+            mvc.perform(get("/api/dashboard").session(counselor))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+    assertThat(dashboard.path("pendingResults").findValuesAsText("studentName"))
+        .contains("待录入试听")
+        .doesNotContain("未来试听", "其他顾问的试听", "已取消试听");
+    assertThat(dashboard.path("trials").findValuesAsText("studentName"))
+        .contains("未来试听")
+        .doesNotContain("待录入试听");
+
+    assertThat(
+            postJson(
+                    counselor,
+                    "/api/trials/" + endedId + "/complete",
+                    Map.of("result", "INTERESTED", "noFollowupReason", "已当面确认无需跟进"))
+                .getResponse()
+                .getStatus())
+        .isEqualTo(200);
+    mvc.perform(
+            post("/api/trials/" + upcomingId + "/cancel")
+                .session(counselor)
+                .header("X-Requested-With", "XMLHttpRequest"))
+        .andExpect(status().isOk());
+    JsonNode after =
+        json.readTree(
+            mvc.perform(get("/api/dashboard").session(counselor))
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+    assertThat(after.path("pendingResults").findValuesAsText("studentName"))
+        .doesNotContain("待录入试听");
+    assertThat(after.path("trials").findValuesAsText("studentName")).doesNotContain("未来试听");
+  }
+
+  @Test
   void concurrentBookingCannotDoubleBookTeacher() throws Exception {
     var s = login("counselor");
     long first = student(s, "并发一"), second = student(s, "并发二");

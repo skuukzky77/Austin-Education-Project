@@ -212,11 +212,20 @@ public class StudentService {
 
   public Map<String, Object> dashboard(Map<String, Object> user) {
     counselor(user);
+    long now = System.currentTimeMillis();
     return Map.of(
         "followups",
         followups("WHERE f.counselor_id=? AND f.status='OPEN' ORDER BY f.due_at", id(user)),
+        "pendingResults",
+        trials(
+            "WHERE s.counselor_id=? AND t.status='SCHEDULED' AND t.ends_at<=? ORDER BY t.ends_at",
+            id(user),
+            now),
         "trials",
-        trials("WHERE s.counselor_id=? AND t.status='SCHEDULED' ORDER BY t.starts_at", id(user)),
+        trials(
+            "WHERE s.counselor_id=? AND t.status='SCHEDULED' AND t.ends_at>? ORDER BY t.starts_at",
+            id(user),
+            now),
         "studentCount",
         db.queryForObject(
             "SELECT count(*) FROM students WHERE counselor_id=?", Integer.class, id(user)));
