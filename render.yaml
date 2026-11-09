@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: austin-student-management-demo
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /
+    envVars:
+      # Free Render instances have ephemeral storage. This database is seeded again
+      # after a restart, redeploy, or idle spin-down; use only demo data.
+      - key: DATABASE_URL
+        value: jdbc:sqlite:/tmp/student-management.db
+      # OPENAI_API_KEY is intentionally not configured: AI suggestions stay disabled.
