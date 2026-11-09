@@ -39,7 +39,36 @@ npm run dev
 4. 在学生详情或首页处理待办并填写联系结果；重复提交会被拒绝。试用另一顾问及老师账号，检查访问边界。
 5. 在结果表单输入反馈，可点击“AI 辅助整理建议”；用户决定是否采用，未配置或失败时仍可手动填写。
 
-## AI 配置（可选）
+## AI 配置：本地模型（无需 API 密钥）
+
+本地方案使用 `llama.cpp` 和 [Qwen2.5-1.5B-Instruct](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF)（Apache 2.0）。首次启动需从 Hugging Face 下载约 **1.04 GiB** 的模型，之后可重复使用；模型文件不包含在项目 ZIP 或 Git 仓库中。小模型的建议质量有限，使用前须由顾问核对。
+
+在 macOS 上先安装 [Homebrew](https://brew.sh/)，然后打开第一个终端：
+
+```bash
+brew install llama.cpp
+cd ~/Downloads/student-management
+chmod +x scripts/start-local-model.sh
+./scripts/start-local-model.sh
+```
+
+脚本会校验模型的 SHA-256，并在本机 `127.0.0.1:8081` 启动服务；保持窗口打开。在第二个终端配置并启动后端：
+
+```bash
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+export PATH="$JAVA_HOME/bin:$PATH"
+export OPENAI_BASE_URL=http://127.0.0.1:8081/v1
+export OPENAI_MODEL=qwen-local
+unset OPENAI_API_KEY
+cd ~/Downloads/student-management/backend
+./mvnw spring-boot:run
+```
+
+第三个终端按“本地运行”章节启动前端，登录后在待录入结果的试听中输入反馈，点击“AI 辅助整理建议”。在这种模式下反馈只发送到本机模型服务；服务器未启动或调用失败时可手动填写。
+
+已在 Linux CPU 环境使用 `llama.cpp` b12211 和 Qwen2.5-1.5B-Instruct Q4_K_M，**无 API 密钥**完成真实推理，并通过浏览器验证人工采用及保存流程；macOS 步骤尚需在目标设备上验证。生成可能需要数秒，取决于电脑性能。
+
+## AI 配置：远程模型（可选）
 
 后端启动前设置环境变量；不设置也可完整演示业务流程。
 
@@ -51,7 +80,7 @@ export OPENAI_MODEL='gpt-4o-mini'
 # export OPENAI_BASE_URL='https://api.openai.com/v1'
 ```
 
-服务端只发送用户主动填写的试听反馈，要求 `summary` 和 `suggestedAction` 的 JSON Schema 输出，并校验字段、类型和长度；结果不自动保存、发消息或修改状态。没有密钥、超时、服务异常或校验失败时提示手动填写。不要将密钥、真实反馈或数据库提交到仓库。代理环境需确保 JVM 可通过配置的 HTTPS 代理访问服务。
+服务端只发送用户主动填写的试听反馈，要求 `summary` 和 `suggestedAction` 的 JSON Schema 输出，并校验字段、类型和长度；结果不自动保存、发消息或修改状态。远程服务没有密钥、超时、服务异常或校验失败时提示手动填写。不要将密钥、真实反馈或数据库提交到仓库。代理环境需确保 JVM 可通过配置的 HTTPS 代理访问服务；不允许向非本机的 HTTP 地址发送请求。
 
 ## 验证
 
@@ -60,7 +89,14 @@ cd backend
 ./mvnw test
 ```
 
-测试覆盖未登录和跨顾问访问、老师权限、试听与正式课冲突及首尾相接、并发争抢同一老师、试听与跟进事务、试听结果待录入提醒、重复操作、墨尔本夏令时无效/歧义时间，以及 LLM 输出校验与失败降级。AI 成功响应使用本地模拟服务测试，不消耗 API 额度。
+测试覆盖未登录和跨顾问访问、老师权限、试听与正式课冲突及首尾相接、并发争抢同一老师、试听与跟进事务、试听结果待录入提醒、重复操作、墨尔本夏令时无效/歧义时间，以及 LLM 输出校验与失败降级。默认自动化测试使用本地模拟服务，不消耗 API 额度。
+
+如需单独验证真实本地模型，请先启动 `scripts/start-local-model.sh`，再执行：
+
+```bash
+cd backend
+RUN_REAL_LLM_TEST=true ./mvnw -Dtest=LocalModelIntegrationTest test
+```
 
 ```bash
 cd frontend
