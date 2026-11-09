@@ -2,6 +2,30 @@
 
 一个面向课程顾问的纵向切片：**咨询建档 → 安排试听 → 记录结果 → 跟进**。项目使用 React + TypeScript、Java 21 / Spring Boot 与 SQLite，方案及范围见 [DESIGN.md](DESIGN.md)。
 
+## 部署说明
+
+项目使用 **Docker + Render** 进行在线部署，通过 GitHub `main` 分支自动同步和部署。
+
+- **部署平台：** [Render](https://render.com/)
+- **部署方式：** Docker
+- **部署配置：** `Dockerfile`、`render.yaml`
+- **前端构建：** Node.js 22
+- **后端运行：** Java 21 + Spring Boot 3.5.7
+- **数据库：** SQLite
+
+### 在线演示
+
+访问地址：[Austin Education 学生管理系统](https://austin-student-management-demo-o4x0.onrender.com)
+
+温馨提示： 项目部署在 Render Free 免费服务上，连续 15 分钟没有访问时，服务会自动休眠。休眠后首次访问通常需要等待约 1 分钟完成启动，请耐心等待，页面暂时无法打开不一定代表服务异常。
+
+### 部署架构
+
+前端 React 项目构建后由 Spring Boot 提供静态资源服务，后端同时提供 REST API 接口，使用 SQLite 存储业务数据。
+
+### 数据持久化说明
+
+当前使用 Render Free 服务，SQLite 数据库存储于临时文件系统中，服务重启或重新部署后数据可能丢失。因此，当前部署仅用于功能演示和学习，不建议用于生产环境或存储真实用户数据。
 ## 本地运行
 
 需要 Java **JDK 21**（不仅是 Java 运行时）、Node.js 20.19+ 或 22.12+、npm，以及首次安装依赖时的网络。Maven Wrapper 会自动下载 Maven 3.9.11，无需事先安装 Maven。
